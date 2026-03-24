@@ -879,6 +879,18 @@ body {
   color: var(--text-secondary);
 }
 
+.field--inline {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.field--inline input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
 .field input,
 .field select,
 .textarea-code {
@@ -894,6 +906,12 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+#rate-updated-hint {
+  margin: 0;
+  align-self: center;
+  font-size: 0.74rem;
 }
 
 .field-hint {
