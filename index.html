@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/app.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
   <div id="app" class="app">
@@ -61,7 +62,14 @@
       </section>
 
       <section class="section-list">
-        <h2 class="section-list__title">今日花費</h2>
+        <div class="section-list__head">
+          <h2 class="section-list__title">今日花費</h2>
+          <div class="quick-adds">
+            <button type="button" class="btn btn--secondary btn--sm" id="btn-template-transport">🚆 交通</button>
+            <button type="button" class="btn btn--secondary btn--sm" id="btn-template-dining">🍜 餐飲</button>
+            <button type="button" class="btn btn--secondary btn--sm" id="btn-home-add">＋ 手動新增</button>
+          </div>
+        </div>
         <div id="home-today-list" class="tx-list"></div>
         <p class="empty-hint" id="home-empty">今天還沒有記帳，點下方「掃描」或手動新增。</p>
       </section>
@@ -293,6 +301,23 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=20260324-3"></script>
+  <dialog id="modal-manual" class="modal">
+    <form method="dialog" id="form-manual" class="modal__form">
+      <h2 class="modal__title">手動新增消費</h2>
+      <label class="field"><span>說明</span><input type="text" id="m-desc" required /></label>
+      <label class="field"><span>金額（¥）</span><input type="number" id="m-amount" min="0" step="1" required /></label>
+      <label class="field"><span>類別</span><select id="m-category"></select></label>
+      <label class="field"><span>支付</span><select id="m-payment"></select></label>
+      <label class="field"><span>地點</span><input type="text" id="m-location" placeholder="例如：Shibuya / Lawson" /></label>
+      <label class="field"><span>日期</span><input type="date" id="m-date" required /></label>
+      <label class="field"><span>記帳人</span><select id="m-traveler"></select></label>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" id="manual-cancel">取消</button>
+        <button type="submit" class="btn btn--primary">加入</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app.js?v=20260324-7"></script>
 </body>
 </html>
