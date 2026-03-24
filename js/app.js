@@ -1,6 +1,6 @@
 import { CATEGORIES, PAYMENTS, categoryById, paymentById } from "./config.js?v=20260324-7";
 import { buildDefaultItinerary, regionForDate } from "./itinerary.js?v=20260324-7";
-import { DEFAULT_TRAVELERS } from "./seed.js?v=20260324-7";
+import { DEFAULT_TRAVELERS } from "./seed.js?v=20260324-8";
 import { recognizeReceipt } from "./receipt-ai.js?v=20260324-5";
 import { pushToSheet, pullFromSheet } from "./sheets.js?v=20260324-7";
 

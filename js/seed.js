@@ -66,5 +66,5 @@ export function generateSeedTransactions(startStr, count = 48) {
 
 export const DEFAULT_TRAVELERS = [
   { id: "t1", name: "小薇", emoji: "👩" },
-  { id: "t2", name: "阿哲", emoji: "👨" },
+  { id: "t2", name: "小瑋", emoji: "👨" },
 ];
