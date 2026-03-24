@@ -155,6 +155,13 @@
         <p class="field-hint" id="f-region-hint"></p>
         <div class="field">
           <span>品項明細（日文 → 繁中）</span>
+          <div class="items-toolbar">
+            <div class="items-toolbar__actions">
+              <button type="button" class="btn btn--secondary btn--sm" id="btn-add-item">新增品項</button>
+              <button type="button" class="btn btn--secondary btn--sm" id="btn-rebalance-items">以總額重算</button>
+            </div>
+            <span class="items-toolbar__hint" id="items-sum-hint">品項合計 ¥0，與總額差 ¥0</span>
+          </div>
           <ul id="f-items" class="items-preview"></ul>
         </div>
         <div class="scan-form__actions">
