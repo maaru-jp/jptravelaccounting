@@ -208,27 +208,36 @@ function pickStoreLine(lines) {
 }
 
 function pickTotal(lines) {
-  const amountRe = /([0-9]{2,7})(?:円|¥)?/;
-  const scoreWords = /(合計|お買上計|税込|計|TOTAL|合 計)/i;
-  let best = 0;
-  for (const ln of lines) {
-    const m = ln.replace(/[,，\s]/g, "").match(amountRe);
-    if (!m) continue;
-    const val = Number(m[1]);
-    if (!Number.isFinite(val) || val <= 0) continue;
-    const score = (scoreWords.test(ln) ? 1000000 : 0) + val;
-    if (score > best) best = score;
+  let bestVal = 0;
+  let bestScore = -1;
+  for (const raw of lines) {
+    const line = normalizeDigits(raw);
+    if (isLikelyDateOrTime(line) || isLikelyPhone(line)) continue;
+    const nums = extractAmountsFromLine(line);
+    if (!nums.length) continue;
+    const maxInLine = Math.max(...nums);
+    if (!Number.isFinite(maxInLine) || maxInLine <= 0) continue;
+    if (maxInLine > 300000) continue;
+    let score = maxInLine;
+    if (/(合計|お買上計|税込|total|合 計|お会計|総計)/i.test(line)) score += 200000;
+    if (/(小計|税|内税|外税|値引|割引|釣銭|預り|お預り|change)/i.test(line)) score -= 120000;
+    if (/(点|個|qty|数量)/i.test(line)) score -= 30000;
+    if (/(円|¥)/.test(line)) score += 25000;
+    if (score > bestScore) {
+      bestScore = score;
+      bestVal = maxInLine;
+    }
   }
-  if (!best) return 0;
-  return best > 1000000 ? best - 1000000 : best;
+  return bestVal || 0;
 }
 
 function pickItems(lines, total) {
   const list = [];
   for (const ln of lines) {
-    const s = ln.replace(/[,，]/g, "");
+    const s = normalizeDigits(ln).replace(/[,，]/g, "");
+    if (isLikelyDateOrTime(s) || isLikelyPhone(s)) continue;
     if (/(合計|小計|税込|税|内税|外税|お預り|釣|レジ|領収|TEL|電話)/i.test(s)) continue;
-    const m = s.match(/^(.{1,28}?)([0-9]{2,6})(?:円|¥)?$/);
+    const m = s.match(/^(.{1,28}?)[\s:：]*([0-9]{2,6})(?:円|¥)?$/);
     if (!m) continue;
     const name = m[1].trim();
     const price = Number(m[2]);
@@ -241,4 +250,27 @@ function pickItems(lines, total) {
     list.push({ nameJa: "商品", nameZh: "商品", price: total, tax: "" });
   }
   return list;
+}
+
+function normalizeDigits(s) {
+  return String(s || "").replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xff10));
+}
+
+function isLikelyDateOrTime(line) {
+  return /(?:19|20)\d{2}[\/\-年\.]\d{1,2}[\/\-月\.]\d{1,2}|[0-2]?\d[:：][0-5]\d/.test(line);
+}
+
+function isLikelyPhone(line) {
+  return /(?:tel|電話|fax)\s*[:：]?\s*\d{2,4}[-\s]?\d{2,4}[-\s]?\d{3,4}/i.test(line);
+}
+
+function extractAmountsFromLine(line) {
+  const vals = [];
+  const re = /(?:¥|円)?\s*([0-9]{2,7})(?:\s*円)?/g;
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    const n = Number(m[1]);
+    if (Number.isFinite(n)) vals.push(n);
+  }
+  return vals;
 }

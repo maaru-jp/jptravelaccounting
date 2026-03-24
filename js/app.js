@@ -1,7 +1,7 @@
 import { CATEGORIES, PAYMENTS, categoryById, paymentById } from "./config.js?v=20260324-9";
 import { buildDefaultItinerary, regionForDate } from "./itinerary.js?v=20260324-9";
 import { DEFAULT_TRAVELERS } from "./seed.js?v=20260324-9";
-import { recognizeReceipt } from "./receipt-ai.js?v=20260324-5";
+import { recognizeReceipt } from "./receipt-ai.js?v=20260324-11";
 import { pushToSheet, pullFromSheet } from "./sheets.js?v=20260324-9";
 
 const STORAGE_KEY = "jp-trip-ledger-v2";
@@ -297,7 +297,8 @@ function fillScanForm(result) {
   if (scanFallbackHint) scanFallbackHint.hidden = !result?.isFallback;
   if (el("f-location")) el("f-location").value = result.storeNameZh || result.storeName || "";
   if (el("f-desc")) el("f-desc").value = sanitizeSummary(result.summaryZh || "", !!result.isFallback);
-  if (el("f-amount")) el("f-amount").value = Number(result.totalJpy || 0);
+  const computedAmount = chooseReasonableAmount(result);
+  if (el("f-amount")) el("f-amount").value = computedAmount;
   if (el("f-category")) el("f-category").value = guessCategory((result.summaryZh || "") + (result.storeNameZh || ""));
   if (el("f-payment")) el("f-payment").value = "cash";
   if (el("f-traveler")) el("f-traveler").value = state.travelers[0]?.id || "t1";
@@ -313,6 +314,18 @@ function fillScanForm(result) {
   syncItemsDataset();
   const form = el("scan-result-form");
   if (form) form.dataset.taxType = result.taxType || "";
+}
+
+function chooseReasonableAmount(result) {
+  const total = Number(result?.totalJpy || 0);
+  const itemSum = (result?.items || []).reduce((s, x) => s + Number(x?.price || 0), 0);
+  const maxItem = Math.max(0, ...(result?.items || []).map((x) => Number(x?.price || 0)));
+  if (total > 0) {
+    if (maxItem > total * 1.8 && itemSum > 0) return itemSum;
+    return total;
+  }
+  if (itemSum > 0) return itemSum;
+  return 0;
 }
 
 function guessCategory(text) {
