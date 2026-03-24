@@ -127,7 +127,6 @@ document.querySelectorAll(".bottom-nav__item").forEach((btn) => {
   btn.addEventListener("click", () => showView(btn.dataset.view));
 });
 
-document.getElementById("fab-scan").addEventListener("click", () => showView("scan"));
 document.getElementById("scan-back").addEventListener("click", () => showView("home"));
 
 /* ---------- Select options ---------- */
@@ -514,7 +513,7 @@ document.getElementById("scan-reset").addEventListener("click", () => {
   renderEditableItems();
 });
 
-document.getElementById("scan-result-form").addEventListener("submit", (e) => {
+document.getElementById("scan-result-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const date = document.getElementById("f-date").value;
   const items = JSON.parse(scanForm.dataset.itemsJson || "[]");
@@ -538,7 +537,10 @@ document.getElementById("scan-result-form").addEventListener("submit", (e) => {
   document.getElementById("scan-reset").click();
   showView("home");
   renderHome();
-  autoSyncPush();
+  const sync = await autoSyncPush({ source: "scan" });
+  if (!sync.ok) {
+    alert(`已加入本機記帳，但試算表自動同步失敗：${sync.error}\n請到「設定」頁按「推送到試算表」查看與重試。`);
+  }
 });
 
 /* ---------- Modal ---------- */
@@ -728,6 +730,13 @@ function loadSettingsForm() {
   document.getElementById("set-itinerary-json").value = JSON.stringify(state.itinerary, null, 2);
 }
 
+function setSheetSyncStatus(msg, ok = null) {
+  const el = document.getElementById("sheet-sync-status");
+  if (!el) return;
+  const prefix = ok === true ? "同步狀態：✅ " : ok === false ? "同步狀態：⚠️ " : "同步狀態：";
+  el.textContent = `${prefix}${msg}`;
+}
+
 document.getElementById("settings-form").addEventListener("submit", (e) => {
   e.preventDefault();
   state.trip.name = document.getElementById("set-trip-name").value.trim() || state.trip.name;
@@ -760,8 +769,10 @@ document.getElementById("btn-push-sheet").addEventListener("click", async () => 
   const url = document.getElementById("set-sheet-url").value.trim() || state.settings.sheetUrl;
   try {
     await pushToSheet(url, serializeForSheet(state.transactions));
+    setSheetSyncStatus("手動推送成功", true);
     alert("已推送到試算表");
   } catch (e) {
+    setSheetSyncStatus(`手動推送失敗：${e.message}`, false);
     alert("推送失敗：" + e.message);
   }
 });
@@ -777,11 +788,14 @@ document.getElementById("btn-pull-sheet").addEventListener("click", async () => 
       renderHome();
       renderRecords();
       if (views.stats.classList.contains("view--active")) renderCharts();
+      setSheetSyncStatus(`手動拉取成功（${merged.length} 筆）`, true);
       alert(`已從試算表合併 ${merged.length} 筆`);
     } else {
+      setSheetSyncStatus("手動拉取成功（0 筆）", true);
       alert("試算表無資料列");
     }
   } catch (e) {
+    setSheetSyncStatus(`手動拉取失敗：${e.message}`, false);
     alert("拉取失敗：" + e.message);
   }
 });
@@ -829,13 +843,21 @@ function safeParseItems(s) {
   }
 }
 
-async function autoSyncPush() {
+async function autoSyncPush({ source = "auto" } = {}) {
   const url = state.settings.sheetUrl;
-  if (!url) return;
+  if (!url) {
+    setSheetSyncStatus("尚未設定 Apps Script 網址", false);
+    return { ok: false, error: "尚未設定 Apps Script 網址" };
+  }
   try {
     await pushToSheet(url, serializeForSheet(state.transactions));
-  } catch {
-    /* 靜默失敗，避免打斷操作 */
+    const from = source === "scan" ? "掃描後" : "自動";
+    setSheetSyncStatus(`${from}同步成功（${new Date().toLocaleTimeString("zh-TW")}）`, true);
+    return { ok: true };
+  } catch (e) {
+    const msg = e?.message || String(e);
+    setSheetSyncStatus(`自動同步失敗：${msg}`, false);
+    return { ok: false, error: msg };
   }
 }
 
