@@ -1,10 +1,11 @@
 import { CATEGORIES, PAYMENTS, categoryById, paymentById } from "./config.js";
 import { buildDefaultItinerary, regionForDate } from "./itinerary.js";
-import { generateSeedTransactions, DEFAULT_TRAVELERS } from "./seed.js";
+import { DEFAULT_TRAVELERS } from "./seed.js";
 import { recognizeReceipt } from "./receipt-ai.js";
 import { pushToSheet, pullFromSheet } from "./sheets.js";
 
 const STORAGE_KEY = "jp-trip-ledger-v1";
+const DEMO_PURGED_KEY = "jp-trip-ledger-demo-purged-v1";
 
 const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -37,7 +38,7 @@ function createDefaultState() {
     rateTwdPerJpy: 0.206,
     travelers: DEFAULT_TRAVELERS,
     itinerary: buildDefaultItinerary(start, 30),
-    transactions: generateSeedTransactions(start, 44),
+    transactions: [],
     settings: {
       sheetUrl: "",
       visionUrl: "",
@@ -50,6 +51,22 @@ let state = loadState() || createDefaultState();
 if (!state.settings) state.settings = { sheetUrl: "", visionUrl: "", openaiKey: "" };
 if (!state.itinerary || Object.keys(state.itinerary).length === 0) {
   state.itinerary = buildDefaultItinerary(state.trip.start, 30);
+}
+purgeLegacyDemoDataOnce();
+
+function purgeLegacyDemoDataOnce() {
+  const alreadyPurged = localStorage.getItem(DEMO_PURGED_KEY) === "1";
+  if (alreadyPurged) return;
+  if (!Array.isArray(state.transactions) || state.transactions.length === 0) {
+    localStorage.setItem(DEMO_PURGED_KEY, "1");
+    return;
+  }
+  const filtered = state.transactions.filter((t) => !String(t?.id || "").startsWith("seed-"));
+  if (filtered.length !== state.transactions.length) {
+    state.transactions = filtered;
+    saveState(state);
+  }
+  localStorage.setItem(DEMO_PURGED_KEY, "1");
 }
 
 function jpyToTwd(jpy) {
@@ -287,7 +304,10 @@ const scanPreview = document.getElementById("scan-preview");
 const scanPlaceholder = document.getElementById("scan-placeholder");
 const scanStatus = document.getElementById("scan-status");
 const scanForm = document.getElementById("scan-result-form");
+const fAmount = document.getElementById("f-amount");
+const itemsSumHint = document.getElementById("items-sum-hint");
 let lastDataUrl = "";
+let scanItems = [];
 
 scanFile.addEventListener("change", async () => {
   const f = scanFile.files?.[0];
@@ -360,16 +380,105 @@ function fillScanForm(result) {
   document.getElementById("f-traveler").value = state.travelers[0]?.id || "t1";
   document.getElementById("f-date").value = todayStr();
   updateRegionHint();
+  scanItems = (result.items || []).map((it) => ({
+    nameJa: String(it.nameJa || ""),
+    nameZh: String(it.nameZh || it.nameJa || ""),
+    price: Number(it.price) || 0,
+    tax: String(it.tax || ""),
+  }));
+  renderEditableItems();
+  scanForm.dataset.taxType = result.taxType || "";
+  syncScanItemsDataset();
+}
+
+function renderEditableItems() {
   const ul = document.getElementById("f-items");
   ul.innerHTML = "";
-  (result.items || []).forEach((it) => {
+  if (!scanItems.length) {
     const li = document.createElement("li");
-    li.innerHTML = `<span>${escapeHtml(it.nameZh || it.nameJa)} <span class="ja">${escapeHtml(it.nameJa || "")}</span></span><span>${formatJpy(it.price)} · ${escapeHtml(it.tax || "")}</span>`;
+    li.className = "item-row__empty";
+    li.textContent = "尚無品項，可直接儲存或重新掃描";
+    ul.appendChild(li);
+    updateItemsSumHint();
+    return;
+  }
+  scanItems.forEach((it, idx) => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div class="item-row">
+        <input type="text" data-k="nameZh" value="${escapeHtml(it.nameZh)}" placeholder="繁中品名" />
+        <input type="text" data-k="nameJa" value="${escapeHtml(it.nameJa)}" placeholder="日文品名" />
+        <input type="number" data-k="price" value="${Number(it.price) || 0}" min="0" step="1" />
+        <input type="text" data-k="tax" value="${escapeHtml(it.tax)}" placeholder="稅別" />
+        <button type="button" class="item-row__delete" data-delete="${idx}" title="刪除品項">🗑️</button>
+      </div>
+    `;
     ul.appendChild(li);
   });
-  scanForm.dataset.taxType = result.taxType || "";
-  scanForm.dataset.itemsJson = JSON.stringify(result.items || []);
+  updateItemsSumHint();
 }
+
+function syncScanItemsDataset() {
+  scanForm.dataset.itemsJson = JSON.stringify(scanItems);
+}
+
+function updateItemsSumHint() {
+  const target = Number(fAmount.value) || 0;
+  const sum = scanItems.reduce((s, it) => s + (Number(it.price) || 0), 0);
+  const diff = target - sum;
+  const mark = diff === 0 ? "一致" : diff > 0 ? `少 ¥${diff.toLocaleString("ja-JP")}` : `多 ¥${Math.abs(diff).toLocaleString("ja-JP")}`;
+  itemsSumHint.textContent = `品項合計 ${formatJpy(sum)}，與總額差 ${formatJpy(diff)}（${mark}）`;
+}
+
+document.getElementById("f-items").addEventListener("input", (e) => {
+  const input = e.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  const row = input.closest("li");
+  if (!row) return;
+  const idx = [...row.parentElement.children].indexOf(row);
+  if (idx < 0 || idx >= scanItems.length) return;
+  const key = input.dataset.k;
+  if (!key) return;
+  if (key === "price") {
+    scanItems[idx].price = Math.max(0, Number(input.value) || 0);
+  } else {
+    scanItems[idx][key] = input.value;
+  }
+  syncScanItemsDataset();
+  updateItemsSumHint();
+});
+
+document.getElementById("f-items").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-delete]");
+  if (!btn) return;
+  const idx = Number(btn.getAttribute("data-delete"));
+  if (Number.isNaN(idx)) return;
+  scanItems.splice(idx, 1);
+  syncScanItemsDataset();
+  renderEditableItems();
+});
+
+document.getElementById("btn-rebalance-items").addEventListener("click", () => {
+  if (!scanItems.length) return;
+  const target = Math.max(0, Number(fAmount.value) || 0);
+  const sumExceptLast = scanItems.slice(0, -1).reduce((s, it) => s + (Number(it.price) || 0), 0);
+  scanItems[scanItems.length - 1].price = Math.max(0, target - sumExceptLast);
+  syncScanItemsDataset();
+  renderEditableItems();
+});
+
+document.getElementById("btn-add-item").addEventListener("click", () => {
+  scanItems.push({
+    nameZh: "新品項",
+    nameJa: "",
+    price: 0,
+    tax: "",
+  });
+  syncScanItemsDataset();
+  renderEditableItems();
+});
+
+fAmount.addEventListener("input", updateItemsSumHint);
 
 function guessCategoryFromText(text) {
   const t = text.toLowerCase();
@@ -400,6 +509,9 @@ document.getElementById("scan-reset").addEventListener("click", () => {
   scanPlaceholder.hidden = false;
   scanForm.hidden = true;
   lastDataUrl = "";
+  scanItems = [];
+  syncScanItemsDataset();
+  renderEditableItems();
 });
 
 document.getElementById("scan-result-form").addEventListener("submit", (e) => {
