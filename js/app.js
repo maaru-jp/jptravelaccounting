@@ -1,8 +1,8 @@
-import { CATEGORIES, PAYMENTS, categoryById, paymentById } from "./config.js?v=20260324-3";
-import { buildDefaultItinerary, regionForDate } from "./itinerary.js?v=20260324-3";
-import { DEFAULT_TRAVELERS } from "./seed.js?v=20260324-3";
-import { recognizeReceipt } from "./receipt-ai.js?v=20260324-3";
-import { pushToSheet, pullFromSheet } from "./sheets.js?v=20260324-3";
+import { CATEGORIES, PAYMENTS, categoryById, paymentById } from "./config.js?v=20260324-7";
+import { buildDefaultItinerary, regionForDate } from "./itinerary.js?v=20260324-7";
+import { DEFAULT_TRAVELERS } from "./seed.js?v=20260324-7";
+import { recognizeReceipt } from "./receipt-ai.js?v=20260324-5";
+import { pushToSheet, pullFromSheet } from "./sheets.js?v=20260324-7";
 
 const STORAGE_KEY = "jp-trip-ledger-v2";
 const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
@@ -96,10 +96,19 @@ function fillSelects() {
   ["f-category", "edit-category"].forEach((id) => {
     if (el(id)) el(id).innerHTML = cat;
   });
+  ["m-category"].forEach((id) => {
+    if (el(id)) el(id).innerHTML = cat;
+  });
   ["f-payment", "edit-payment"].forEach((id) => {
     if (el(id)) el(id).innerHTML = pay;
   });
+  ["m-payment"].forEach((id) => {
+    if (el(id)) el(id).innerHTML = pay;
+  });
   ["f-traveler", "edit-traveler"].forEach((id) => {
+    if (el(id)) el(id).innerHTML = users;
+  });
+  ["m-traveler"].forEach((id) => {
     if (el(id)) el(id).innerHTML = users;
   });
 }
@@ -530,6 +539,7 @@ if (el("scan-result-form")) {
 }
 
 const modal = el("modal-edit");
+const modalManual = el("modal-manual");
 function openEditModal(tx) {
   if (!modal) return;
   el("edit-id").value = tx.id;
@@ -541,6 +551,79 @@ function openEditModal(tx) {
   el("edit-date").value = tx.date || todayStr();
   el("edit-traveler").value = tx.travelerId || "t1";
   modal.showModal();
+}
+
+function openManualModal(preset = {}) {
+  if (!modalManual) return;
+  if (el("m-desc")) el("m-desc").value = "";
+  if (el("m-amount")) el("m-amount").value = "";
+  if (el("m-category")) el("m-category").value = preset.category || "other";
+  if (el("m-payment")) el("m-payment").value = preset.payment || "cash";
+  if (el("m-location")) el("m-location").value = preset.location || "";
+  if (el("m-date")) el("m-date").value = todayStr();
+  if (el("m-traveler")) el("m-traveler").value = state.travelers[0]?.id || "t1";
+  if (el("m-desc") && preset.desc) el("m-desc").value = preset.desc;
+  modalManual.showModal();
+}
+
+if (el("btn-home-add")) {
+  el("btn-home-add").addEventListener("click", openManualModal);
+}
+if (el("btn-template-transport")) {
+  el("btn-template-transport").addEventListener("click", () =>
+    openManualModal({
+      category: "transport",
+      payment: "suica",
+      desc: "交通費",
+      location: "",
+    })
+  );
+}
+if (el("btn-template-dining")) {
+  el("btn-template-dining").addEventListener("click", () =>
+    openManualModal({
+      category: "dining",
+      payment: "cash",
+      desc: "餐飲",
+      location: "",
+    })
+  );
+}
+
+if (el("manual-cancel")) {
+  el("manual-cancel").addEventListener("click", () => modalManual?.close());
+}
+
+if (el("form-manual")) {
+  el("form-manual").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const date = el("m-date")?.value || todayStr();
+    const location = el("m-location")?.value?.trim() || "";
+    const tx = {
+      id: uid(),
+      date,
+      amountJpy: Number(el("m-amount")?.value || 0),
+      category: el("m-category")?.value || "other",
+      payment: el("m-payment")?.value || "cash",
+      location,
+      region: regionForDate(state.itinerary, date) || "",
+      description: el("m-desc")?.value?.trim() || location || "手動新增",
+      travelerId: el("m-traveler")?.value || "t1",
+      items: [],
+      taxType: "",
+      createdAt: new Date().toISOString(),
+    };
+    state.transactions.push(tx);
+    saveState();
+    modalManual?.close();
+    renderHome();
+    renderRecords();
+    renderCharts();
+    const r = await autoSyncPush("手動新增後");
+    if (!r.ok) {
+      alert(`已加入本機記帳，但試算表同步失敗：${r.error}`);
+    }
+  });
 }
 
 if (el("form-edit")) {

@@ -19,14 +19,18 @@ export async function recognizeReceipt(imageDataUrl, settings) {
   const mimeMatch = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
   const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
   const base64 = mimeMatch ? mimeMatch[2] : imageDataUrl.replace(/^.*,/, "");
+  const reasons = [];
 
   if (settings.openaiKey) {
     try {
       const data = await callOpenAIVision(base64, mimeType, settings.openaiKey);
       if (data) return normalizePayload(data);
     } catch (e) {
+      reasons.push(`OpenAI: ${safeErr(e)}`);
       console.warn("OpenAI 辨識失敗，改用備援：", e);
     }
+  } else {
+    reasons.push("OpenAI: 未設定 API Key");
   }
 
   if (settings.visionUrl) {
@@ -40,13 +44,26 @@ export async function recognizeReceipt(imageDataUrl, settings) {
       const json = await res.json();
       if (json && json.ok && json.data) return normalizePayload(json.data);
       if (json && json.storeNameZh) return normalizePayload(json);
+      reasons.push(`Vision: ${json?.error || "回傳格式不符"}`);
     } catch (e) {
+      reasons.push(`Vision: ${safeErr(e)}`);
       console.warn("Vision 端點失敗：", e);
     }
+  } else {
+    reasons.push("Vision: 未設定端點");
+  }
+
+  try {
+    const local = await recognizeReceiptByLocalOcr(imageDataUrl);
+    if (local) return local;
+    reasons.push("本地 OCR: 無法擷取文字");
+  } catch (e) {
+    reasons.push(`本地 OCR: ${safeErr(e)}`);
+    console.warn("本地 OCR 失敗：", e);
   }
 
   await delay(1800 + Math.random() * 1200);
-  return mockFromImageHash(base64);
+  return mockFromImageHash(base64, reasons);
 }
 
 async function callOpenAIVision(base64, mimeType, apiKey) {
@@ -105,15 +122,18 @@ function normalizePayload(raw) {
   };
 }
 
-function mockFromImageHash(b64) {
+function mockFromImageHash(b64, reasons = []) {
   const rough = tryExtractTotalFromDataUrlBase64(b64);
+  const reasonText = reasons.filter(Boolean).slice(0, 2).join("；");
   return {
     storeName: "",
     storeNameZh: "",
     totalJpy: rough || 0,
     taxType: "不確定",
     items: [],
-    summaryZh: "未成功辨識發票內容，請手動修正欄位；建議檢查 Vision API / Apps Script 設定。",
+    summaryZh: reasonText
+      ? `未成功辨識發票內容（${reasonText}），請手動修正欄位。`
+      : "未成功辨識發票內容，請手動修正欄位；建議檢查 Vision API / Apps Script 設定。",
     isFallback: true,
   };
 }
@@ -141,4 +161,84 @@ function tryExtractTotalFromDataUrlBase64(base64) {
   } catch {
     return 0;
   }
+}
+
+function safeErr(e) {
+  const s = String(e?.message || e || "unknown");
+  return s.slice(0, 120);
+}
+
+async function recognizeReceiptByLocalOcr(imageDataUrl) {
+  const T = globalThis.Tesseract;
+  if (!T || typeof T.recognize !== "function") return null;
+  const out = await T.recognize(imageDataUrl, "jpn+eng", {
+    logger: () => {},
+  });
+  const text = String(out?.data?.text || "").replace(/\r/g, "");
+  if (!text.trim()) return null;
+
+  const lines = text
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const store = pickStoreLine(lines);
+  const total = pickTotal(lines);
+  const items = pickItems(lines, total);
+  return {
+    storeName: store,
+    storeNameZh: store,
+    totalJpy: total,
+    taxType: "不確定",
+    items,
+    summaryZh: store ? `${store} 收據 OCR 擷取（請確認）` : "收據 OCR 擷取（請確認）",
+    isFallback: false,
+  };
+}
+
+function pickStoreLine(lines) {
+  const japanese = /[\u3040-\u30ff\u4e00-\u9fff]/;
+  const stop = /(領収|レジ|電話|TEL|店No|レシート|合計|小計|税込|税|担当)/i;
+  for (const ln of lines.slice(0, 8)) {
+    if (!japanese.test(ln)) continue;
+    if (stop.test(ln)) continue;
+    if (ln.length < 2 || ln.length > 24) continue;
+    return ln;
+  }
+  return "";
+}
+
+function pickTotal(lines) {
+  const amountRe = /([0-9]{2,7})(?:円|¥)?/;
+  const scoreWords = /(合計|お買上計|税込|計|TOTAL|合 計)/i;
+  let best = 0;
+  for (const ln of lines) {
+    const m = ln.replace(/[,，\s]/g, "").match(amountRe);
+    if (!m) continue;
+    const val = Number(m[1]);
+    if (!Number.isFinite(val) || val <= 0) continue;
+    const score = (scoreWords.test(ln) ? 1000000 : 0) + val;
+    if (score > best) best = score;
+  }
+  if (!best) return 0;
+  return best > 1000000 ? best - 1000000 : best;
+}
+
+function pickItems(lines, total) {
+  const list = [];
+  for (const ln of lines) {
+    const s = ln.replace(/[,，]/g, "");
+    if (/(合計|小計|税込|税|内税|外税|お預り|釣|レジ|領収|TEL|電話)/i.test(s)) continue;
+    const m = s.match(/^(.{1,28}?)([0-9]{2,6})(?:円|¥)?$/);
+    if (!m) continue;
+    const name = m[1].trim();
+    const price = Number(m[2]);
+    if (!name || !price) continue;
+    if (total && price > total) continue;
+    list.push({ nameJa: name, nameZh: name, price, tax: "" });
+    if (list.length >= 8) break;
+  }
+  if (!list.length && total > 0) {
+    list.push({ nameJa: "商品", nameZh: "商品", price: total, tax: "" });
+  }
+  return list;
 }
