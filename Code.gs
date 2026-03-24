@@ -11,10 +11,13 @@
  *
  * 工作表名稱：Transactions（若不存在會自動建立並寫入標題列）
  */
-var PROP_SPREADSHEET_ID = 'SPREADSHEET_ID';
-var PROP_OPENAI_KEY = 'OPENAI_API_KEY';
+var PROP_SPREADSHEET_ID = '1GbjJd5NRPh_Jcx9My_Zess58cDPESI25yeuWLSxrZT0';
+var PROP_OPENAI_KEY = '
+
+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
+';
 // 若你不想用 Script Properties，可直接在這裡填入試算表 ID（優先使用）
-var HARDCODED_SPREADSHEET_ID = '';
+var HARDCODED_SPREADSHEET_ID = '1GbjJd5NRPh_Jcx9My_Zess58cDPESI25yeuWLSxrZT0';
 var SHEET_NAME = 'Transactions';
 var HEADERS = ['id', 'date', 'amountJpy', 'category', 'payment', 'location', 'region', 'description', 'travelerId', 'taxType', 'itemsJson', 'createdAt'];
 
