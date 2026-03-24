@@ -11,7 +11,7 @@
  *
  * 工作表名稱：Transactions（若不存在會自動建立並寫入標題列）
  */
-var PROP_SPREADSHEET_ID = '1GbjJd5NRPh_Jcx9My_Zess58cDPESI25yeuWLSxrZT0';
+var PROP_SPREADSHEET_ID = 'SPREADSHEET_ID';
 var PROP_OPENAI_KEY = 'OPENAI_API_KEY';
 var SHEET_NAME = 'Transactions';
 var HEADERS = ['id', 'date', 'amountJpy', 'category', 'payment', 'location', 'region', 'description', 'travelerId', 'taxType', 'itemsJson', 'createdAt'];
@@ -108,7 +108,7 @@ function writeTransactions_(txs) {
       return String(v);
     });
   });
-  sh.getRange(2, 1, rows.length + 1, HEADERS.length).setValues(rows);
+  sh.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
 }
 
 function callOpenAIVision_(base64, mimeType) {
