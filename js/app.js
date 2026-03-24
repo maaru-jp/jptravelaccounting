@@ -1,8 +1,8 @@
-import { CATEGORIES, PAYMENTS, categoryById, paymentById } from "./config.js?v=20260324-9";
-import { buildDefaultItinerary, regionForDate } from "./itinerary.js?v=20260324-9";
-import { DEFAULT_TRAVELERS } from "./seed.js?v=20260324-9";
-import { recognizeReceipt } from "./receipt-ai.js?v=20260324-11";
-import { pushToSheet, pullFromSheet } from "./sheets.js?v=20260324-9";
+import { CATEGORIES, PAYMENTS, categoryById, paymentById } from "./config.js?v=20260324-14";
+import { buildDefaultItinerary, regionForDate } from "./itinerary.js?v=20260324-14";
+import { DEFAULT_TRAVELERS } from "./seed.js?v=20260324-14";
+import { recognizeReceipt } from "./receipt-ai.js?v=20260324-14";
+import { pushToSheet, pullFromSheet } from "./sheets.js?v=20260324-14";
 
 const STORAGE_KEY = "jp-trip-ledger-v2";
 const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
@@ -23,7 +23,14 @@ function defaultState() {
     travelers: DEFAULT_TRAVELERS,
     itinerary: buildDefaultItinerary(start, 30),
     transactions: [],
-    settings: { sheetUrl: "", visionUrl: "", openaiKey: "" },
+    settings: {
+      sheetUrl: "",
+      visionUrl: "",
+      openaiKey: "",
+      rateUpdatedAt: "",
+      autoPullOnStart: true,
+      hasUnsyncedLocalChanges: false,
+    },
   };
 }
 
@@ -36,7 +43,16 @@ function loadState() {
 }
 
 let state = loadState();
-if (!state.settings) state.settings = { sheetUrl: "", visionUrl: "", openaiKey: "" };
+if (!state.settings) {
+  state.settings = {
+    sheetUrl: "",
+    visionUrl: "",
+    openaiKey: "",
+    rateUpdatedAt: "",
+    autoPullOnStart: true,
+    hasUnsyncedLocalChanges: false,
+  };
+}
 if (!Array.isArray(state.transactions)) state.transactions = [];
 if (Array.isArray(state.travelers)) {
   state.travelers = state.travelers.map((t) =>
@@ -46,6 +62,14 @@ if (Array.isArray(state.travelers)) {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function markLocalDirty() {
+  state.settings.hasUnsyncedLocalChanges = true;
+}
+
+function clearLocalDirty() {
+  state.settings.hasUnsyncedLocalChanges = false;
 }
 
 function formatJpy(n) {
@@ -436,6 +460,8 @@ async function autoSyncPush(source = "auto") {
     await pushToSheet(url, payload);
     const verify = await verifyWrite(url, payload);
     if (!verify.ok) throw new Error(verify.error || "驗證失敗");
+    clearLocalDirty();
+    saveState();
     setSyncStatus(`${source}同步成功（已驗證 ${verify.count} 筆）`, true);
     return { ok: true };
   } catch (e) {
@@ -548,6 +574,7 @@ if (el("scan-result-form")) {
       createdAt: new Date().toISOString(),
     };
     state.transactions.push(tx);
+    markLocalDirty();
     saveState();
     el("scan-reset")?.click();
     showView("home");
@@ -632,6 +659,7 @@ if (el("form-manual")) {
       createdAt: new Date().toISOString(),
     };
     state.transactions.push(tx);
+    markLocalDirty();
     saveState();
     modalManual?.close();
     renderHome();
@@ -657,6 +685,7 @@ if (el("form-edit")) {
     t.date = el("edit-date").value;
     t.travelerId = el("edit-traveler").value;
     t.region = regionForDate(state.itinerary, t.date) || "";
+    markLocalDirty();
     saveState();
     modal.close();
     renderHome();
@@ -670,6 +699,7 @@ if (el("edit-delete")) {
   el("edit-delete").addEventListener("click", async () => {
     const id = el("edit-id").value;
     state.transactions = state.transactions.filter((x) => x.id !== id);
+    markLocalDirty();
     saveState();
     modal?.close();
     renderHome();
@@ -782,7 +812,13 @@ function loadSettingsForm() {
   if (el("set-sheet-url")) el("set-sheet-url").value = state.settings.sheetUrl || "";
   if (el("set-vision-url")) el("set-vision-url").value = state.settings.visionUrl || "";
   if (el("set-openai-key")) el("set-openai-key").value = state.settings.openaiKey || "";
+  if (el("set-auto-pull-on-start")) el("set-auto-pull-on-start").checked = !!state.settings.autoPullOnStart;
   if (el("set-itinerary-json")) el("set-itinerary-json").value = JSON.stringify(state.itinerary, null, 2);
+  if (el("rate-updated-hint")) {
+    el("rate-updated-hint").textContent = state.settings.rateUpdatedAt
+      ? `最近更新：${state.settings.rateUpdatedAt}`
+      : "尚未更新即時匯率";
+  }
 }
 
 if (el("settings-form")) {
@@ -796,10 +832,47 @@ if (el("settings-form")) {
     state.settings.sheetUrl = el("set-sheet-url").value.trim();
     state.settings.visionUrl = el("set-vision-url").value.trim();
     state.settings.openaiKey = el("set-openai-key").value.trim();
+    state.settings.autoPullOnStart = !!el("set-auto-pull-on-start")?.checked;
     saveState();
     renderHome();
     alert("設定已儲存");
   });
+}
+
+if (el("btn-refresh-rate")) {
+  el("btn-refresh-rate").addEventListener("click", async () => {
+    const btn = el("btn-refresh-rate");
+    const hint = el("rate-updated-hint");
+    try {
+      if (btn) btn.disabled = true;
+      if (hint) hint.textContent = "正在更新匯率...";
+      const rate = await fetchLiveJpyToTwdRate();
+      if (!Number.isFinite(rate) || rate <= 0) throw new Error("匯率資料異常");
+      if (el("set-rate")) el("set-rate").value = rate.toFixed(4);
+      const ts = new Date().toLocaleString("zh-TW");
+      state.rateTwdPerJpy = rate;
+      state.settings.rateUpdatedAt = ts;
+      saveState();
+      renderHome();
+      if (hint) hint.textContent = `最近更新：${ts}`;
+      alert(`已更新即時匯率：1¥ ≈ NT$${rate.toFixed(4)}`);
+    } catch (e) {
+      if (hint) hint.textContent = `更新失敗：${e.message || e}`;
+      alert("匯率更新失敗：" + (e.message || e));
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
+}
+
+async function fetchLiveJpyToTwdRate() {
+  // 來源：open.er-api.com（免費即時匯率）
+  const res = await fetch("https://open.er-api.com/v6/latest/JPY", { method: "GET", mode: "cors" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  const twd = Number(json?.rates?.TWD);
+  if (!twd) throw new Error("無 TWD 匯率");
+  return twd;
 }
 
 if (el("btn-save-itinerary")) {
@@ -823,6 +896,8 @@ if (el("btn-push-sheet")) {
       await pushToSheet(url, rows);
       const v = await verifyWrite(url, rows);
       if (!v.ok) throw new Error(v.error || "驗證失敗");
+      clearLocalDirty();
+      saveState();
       setSyncStatus(`手動推送成功（已驗證 ${v.count} 筆）`, true);
       alert(`已推送（已驗證 ${v.count} 筆）`);
     } catch (e) {
@@ -835,9 +910,14 @@ if (el("btn-push-sheet")) {
 if (el("btn-pull-sheet")) {
   el("btn-pull-sheet").addEventListener("click", async () => {
     const url = el("set-sheet-url").value.trim() || state.settings.sheetUrl;
+    if (state.settings.hasUnsyncedLocalChanges) {
+      const ok = confirm("本機有尚未推送的變更，拉取會覆蓋本機資料。要繼續拉取嗎？");
+      if (!ok) return;
+    }
     try {
       const rows = await pullFromSheet(url);
       state.transactions = parseRows(rows);
+      clearLocalDirty();
       saveState();
       renderHome();
       renderRecords();
@@ -849,6 +929,28 @@ if (el("btn-pull-sheet")) {
       alert("拉取失敗：" + (e.message || e));
     }
   });
+}
+
+async function autoPullOnStartupIfEnabled() {
+  if (!state.settings.autoPullOnStart) return;
+  const url = state.settings.sheetUrl;
+  if (!url) return;
+  if (state.settings.hasUnsyncedLocalChanges) {
+    setSyncStatus("偵測到本機未推送資料，已略過開站自動拉取", false);
+    return;
+  }
+  try {
+    const rows = await pullFromSheet(url);
+    state.transactions = parseRows(rows);
+    clearLocalDirty();
+    saveState();
+    renderHome();
+    renderRecords();
+    renderCharts();
+    setSyncStatus(`開站自動拉取成功（${rows.length} 筆）`, true);
+  } catch (e) {
+    setSyncStatus(`開站自動拉取失敗：${e.message || e}`, false);
+  }
 }
 
 document.querySelectorAll(".tabs__btn").forEach((btn) => {
@@ -870,3 +972,6 @@ window.addEventListener("resize", () => {
 fillSelects();
 loadSettingsForm();
 renderHome();
+setTimeout(() => {
+  autoPullOnStartupIfEnabled();
+}, 250);
