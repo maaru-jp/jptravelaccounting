@@ -11,8 +11,10 @@
  *
  * 工作表名稱：Transactions（若不存在會自動建立並寫入標題列）
  */
-var PROP_SPREADSHEET_ID = '1GbjJd5NRPh_Jcx9My_Zess58cDPESI25yeuWLSxrZT0';
-var PROP_OPENAI_KEY = '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';
+var PROP_SPREADSHEET_ID = 'SPREADSHEET_ID';
+var PROP_OPENAI_KEY = 'OPENAI_API_KEY';
+// 若你不想用 Script Properties，可直接在這裡填入試算表 ID（優先使用）
+var HARDCODED_SPREADSHEET_ID = '';
 var SHEET_NAME = 'Transactions';
 var HEADERS = ['id', 'date', 'amountJpy', 'category', 'payment', 'location', 'region', 'description', 'travelerId', 'taxType', 'itemsJson', 'createdAt'];
 
@@ -23,6 +25,15 @@ var VISION_SYSTEM = '你是日本收據 OCR 助手。請從收據圖片擷取並
 
 function doGet(e) {
   var action = e && e.parameter && e.parameter.action;
+  if (action === 'debug') {
+    var id = getSpreadsheetId_();
+    return jsonOut_({
+      ok: true,
+      spreadsheetId: id || '',
+      sheetName: SHEET_NAME,
+      hint: id ? '已讀到 SPREADSHEET_ID' : '尚未設定 SPREADSHEET_ID（Script Properties 或 HARDCODED_SPREADSHEET_ID）'
+    });
+  }
   if (action === 'pull') {
     try {
       var txs = pullTransactions_();
@@ -31,7 +42,10 @@ function doGet(e) {
       return jsonOut_({ ok: false, error: String(err.message || err) });
     }
   }
-  return jsonOut_({ ok: true, message: 'JP Trip Ledger API. Use POST action=push|vision or GET ?action=pull' });
+  return jsonOut_({
+    ok: true,
+    message: 'JP Trip Ledger API. Use POST action=push|vision, GET ?action=pull, GET ?action=debug'
+  });
 }
 
 function doPost(e) {
@@ -79,8 +93,8 @@ function jsonOut_(obj) {
 }
 
 function getSheet_() {
-  var id = PropertiesService.getScriptProperties().getProperty(PROP_SPREADSHEET_ID);
-  if (!id) throw new Error('請在指令碼屬性設定 SPREADSHEET_ID');
+  var id = getSpreadsheetId_();
+  if (!id) throw new Error('請在指令碼屬性設定 SPREADSHEET_ID，或填入 HARDCODED_SPREADSHEET_ID');
   var ss = SpreadsheetApp.openById(id);
   var sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) {
@@ -88,6 +102,11 @@ function getSheet_() {
     sh.appendRow(HEADERS);
   }
   return sh;
+}
+
+function getSpreadsheetId_() {
+  if (HARDCODED_SPREADSHEET_ID) return HARDCODED_SPREADSHEET_ID;
+  return PropertiesService.getScriptProperties().getProperty(PROP_SPREADSHEET_ID);
 }
 
 function pullTransactions_() {
