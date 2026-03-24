@@ -11,12 +11,10 @@
  *
  * 工作表名稱：Transactions（若不存在會自動建立並寫入標題列）
  */
-var PROP_SPREADSHEET_ID = '1GbjJd5NRPh_Jcx9My_Zess58cDPESI25yeuWLSxrZT0';
-var PROP_OPENAI_KEY = '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';
-// 可選：若你要先快速測通，可直接填 ID（會優先使用）
-var HARDCODED_SPREADSHEET_ID = '1GbjJd5NRPh_Jcx9My_Zess58cDPESI25yeuWLSxrZT0';
+var PROP_SPREADSHEET_ID = 'SPREADSHEET_ID';
+var PROP_OPENAI_KEY = 'OPENAI_API_KEY';
 // 若你不想用 Script Properties，可直接在這裡填入試算表 ID（優先使用）
-var HARDCODED_SPREADSHEET_ID = '1GbjJd5NRPh_Jcx9My_Zess58cDPESI25yeuWLSxrZT0';
+var HARDCODED_SPREADSHEET_ID = '';
 var SHEET_NAME = 'Transactions';
 var HEADERS = ['id', 'date', 'amountJpy', 'category', 'payment', 'location', 'region', 'description', 'travelerId', 'taxType', 'itemsJson', 'createdAt'];
 
@@ -29,25 +27,25 @@ function doGet(e) {
   var action = e && e.parameter && e.parameter.action;
   if (action === 'debug') {
     var id = getSpreadsheetId_();
-    return jsonOut_({
+    return jsonOutMaybeJsonp_({
       ok: true,
       spreadsheetId: id || '',
       sheetName: SHEET_NAME,
       hint: id ? '已讀到 SPREADSHEET_ID' : '尚未設定 SPREADSHEET_ID（Script Properties 或 HARDCODED_SPREADSHEET_ID）'
-    });
+    }, e);
   }
   if (action === 'pull') {
     try {
       var txs = pullTransactions_();
-      return jsonOut_({ ok: true, transactions: txs });
+      return jsonOutMaybeJsonp_({ ok: true, transactions: txs }, e);
     } catch (err) {
-      return jsonOut_({ ok: false, error: String(err.message || err) });
+      return jsonOutMaybeJsonp_({ ok: false, error: String(err.message || err) }, e);
     }
   }
-  return jsonOut_({
+  return jsonOutMaybeJsonp_({
     ok: true,
     message: 'JP Trip Ledger API. Use POST action=push|vision, GET ?action=pull, GET ?action=debug'
-  });
+  }, e);
 }
 
 function doPost(e) {
@@ -92,6 +90,17 @@ function jsonOut_(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function jsonOutMaybeJsonp_(obj, e) {
+  var cb = e && e.parameter && e.parameter.callback;
+  if (!cb) return jsonOut_(obj);
+  if (!/^[A-Za-z_$][0-9A-Za-z_$\.]*$/.test(cb)) {
+    return jsonOut_({ ok: false, error: 'invalid callback' });
+  }
+  return ContentService
+    .createTextOutput(cb + '(' + JSON.stringify(obj) + ');')
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 
 function getSheet_() {
