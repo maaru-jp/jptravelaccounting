@@ -371,7 +371,9 @@ function loadImage(src) {
 }
 
 function fillScanForm(result) {
-  scanFallbackHint.hidden = !result?.isFallback;
+  if (scanFallbackHint) {
+    scanFallbackHint.hidden = !result?.isFallback;
+  }
   const cleanSummary = sanitizeSummary(result?.summaryZh || "", !!result?.isFallback);
   document.getElementById("f-location").value = result.storeNameZh || result.storeName || "";
   document.getElementById("f-desc").value = cleanSummary;
