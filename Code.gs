@@ -14,7 +14,7 @@
 var PROP_SPREADSHEET_ID = '1GbjJd5NRPh_Jcx9My_Zess58cDPESI25yeuWLSxrZT0';
 var PROP_OPENAI_KEY = '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';
 // 若你不想用 Script Properties，可直接在這裡填入試算表 ID（優先使用）
-var HARDCODED_SPREADSHEET_ID = '';
+var HARDCODED_SPREADSHEET_ID = '1GbjJd5NRPh_Jcx9My_Zess58cDPESI25yeuWLSxrZT0';
 var SHEET_NAME = 'Transactions';
 var HEADERS = ['id', 'date', 'amountJpy', 'category', 'payment', 'location', 'region', 'description', 'travelerId', 'taxType', 'itemsJson', 'createdAt'];
 
