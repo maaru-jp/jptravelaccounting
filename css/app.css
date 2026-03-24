@@ -284,6 +284,65 @@ body {
   border-radius: var(--radius);
   padding: 14px;
   box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+  transition: transform 220ms ease, box-shadow 260ms ease, border-color 260ms ease;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.dash-card::before {
+  content: "";
+  position: absolute;
+  inset: -35% -120% auto;
+  height: 85%;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.45) 48%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translateX(-40%) rotate(8deg);
+  transition: transform 420ms ease;
+  pointer-events: none;
+}
+
+.dash-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -46%;
+  height: 70%;
+  background: radial-gradient(circle at 50% 0%, rgba(0, 122, 255, 0.14), rgba(0, 122, 255, 0));
+  opacity: 0;
+  transition: opacity 260ms ease;
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dash-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.12), 0 6px 14px rgba(0, 0, 0, 0.08);
+    border-color: rgba(160, 190, 220, 0.45);
+  }
+
+  .dash-card:hover::before {
+    transform: translateX(44%) rotate(8deg);
+  }
+
+  .dash-card:hover::after {
+    opacity: 1;
+  }
+
+  .dash-card:hover .dash-card__icon {
+    transform: scale(1.12);
+  }
+
+  .dash-card:hover .dash-card__amount {
+    letter-spacing: -0.012em;
+  }
+}
+
+.dash-card:active {
+  transform: translateY(-2px) scale(0.995);
 }
 
 .dash-card__head {
@@ -295,6 +354,7 @@ body {
 
 .dash-card__icon {
   font-size: 1.1rem;
+  transition: transform 180ms ease;
 }
 
 .dash-card__label {
@@ -976,6 +1036,55 @@ body {
   font-size: 0.9rem;
   font-weight: 600;
   margin: 0 0 12px;
+}
+
+.person-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.person-filter__btn {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: #eef0f4;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+.person-filter__btn--active {
+  background: #1f2937;
+  color: #fff;
+}
+
+.person-total-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.person-total-card {
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 10px 12px;
+  background: #fafafa;
+}
+
+.person-total-card__name {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.person-total-card__amt {
+  margin: 6px 0 0;
+  font-size: 1.1rem;
+  font-weight: 700;
 }
 
 .chart-wrap {
