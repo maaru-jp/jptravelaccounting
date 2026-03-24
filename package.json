@@ -1,0 +1,7 @@
+{
+  "name": "jp-trip-ledger",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve -l 3456 ."
+  }
+}

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f5f5f7" />
+  <title>日本旅遊記帳 · JP Trip Ledger</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="app" class="app">
+    <!-- 首頁 -->
+    <main id="view-home" class="view view--active" aria-label="首頁">
+      <header class="hero">
+        <div class="hero__polaroids" aria-hidden="true">
+          <div class="polaroid polaroid--1"><span class="polaroid__emoji">🗻</span></div>
+          <div class="polaroid polaroid--2"><span class="polaroid__emoji">👩</span></div>
+          <div class="polaroid polaroid--3"><span class="polaroid__emoji">👨</span></div>
+        </div>
+        <h1 class="hero__title" id="trip-title">2026初次東京小旅遊</h1>
+        <p class="hero__subtitle" id="trip-dates"></p>
+      </header>
+
+      <section class="grid-dashboard">
+        <article class="dash-card dash-card--orange">
+          <div class="dash-card__head">
+            <span class="dash-card__icon">☀️</span>
+            <span class="dash-card__label">今日支出</span>
+          </div>
+          <p class="dash-card__amount" id="dash-today-jpy">¥0</p>
+          <p class="dash-card__sub" id="dash-today-twd">≈ NT$0</p>
+        </article>
+        <article class="dash-card dash-card--blue">
+          <div class="dash-card__head">
+            <span class="dash-card__icon">📊</span>
+            <span class="dash-card__label">旅程累計</span>
+          </div>
+          <p class="dash-card__amount" id="dash-total-jpy">¥0</p>
+          <p class="dash-card__sub" id="dash-total-twd">≈ NT$0</p>
+        </article>
+        <article class="dash-card dash-card--green">
+          <div class="dash-card__head">
+            <span class="dash-card__icon">🎯</span>
+            <span class="dash-card__label">預算進度（現金 + Suica）</span>
+          </div>
+          <p class="dash-card__amount" id="dash-budget-pct">0%</p>
+          <div class="progress-bar"><div class="progress-bar__fill" id="dash-budget-bar"></div></div>
+        </article>
+        <article class="dash-card dash-card--neutral">
+          <div class="dash-card__head">
+            <span class="dash-card__icon">📅</span>
+            <span class="dash-card__label">旅程天數</span>
+          </div>
+          <p class="dash-card__amount" id="dash-day-label">Day 1</p>
+          <p class="dash-card__sub" id="dash-day-total"></p>
+        </article>
+      </section>
+
+      <button type="button" class="fab-ai" id="fab-scan" title="掃描收據">
+        <span class="fab-ai__wand">✨</span>
+        <span class="fab-ai__translate">A文</span>
+      </button>
+
+      <section class="section-list">
+        <h2 class="section-list__title">今日花費</h2>
+        <div id="home-today-list" class="tx-list"></div>
+        <p class="empty-hint" id="home-empty">今天還沒有記帳，點下方「掃描」或手動新增。</p>
+      </section>
+    </main>
+
+    <!-- 紀錄 -->
+    <main id="view-records" class="view" aria-label="紀錄">
+      <header class="page-head">
+        <h1 class="page-head__title">查看所有旅行消費</h1>
+      </header>
+      <section class="summary-card">
+        <div class="summary-card__icon">📋</div>
+        <div class="summary-card__body">
+          <p class="summary-card__label">旅行總支出</p>
+          <p class="summary-card__jpy" id="records-total-jpy">¥0</p>
+          <p class="summary-card__meta"><span id="records-total-twd">≈ NT$0</span> · <span id="records-count">0 筆</span></p>
+        </div>
+      </section>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tabs__btn tabs__btn--active" data-tab="date" role="tab" aria-selected="true">按日期</button>
+        <button type="button" class="tabs__btn" data-tab="category" role="tab" aria-selected="false">按類別</button>
+      </div>
+      <div id="records-by-date" class="records-groups"></div>
+      <div id="records-by-category" class="records-groups records-groups--hidden"></div>
+    </main>
+
+    <!-- 掃描 -->
+    <main id="view-scan" class="view" aria-label="掃描收據">
+      <header class="page-head page-head--back">
+        <button type="button" class="link-back" id="scan-back">← 返回</button>
+        <h1 class="page-head__title page-head__title--lg">掃描收據</h1>
+        <p class="page-head__desc">拍照或上傳收據圖片</p>
+      </header>
+      <div class="scan-card">
+        <div class="scan-preview-wrap" id="scan-preview-wrap">
+          <img id="scan-preview" class="scan-preview" alt="" hidden />
+          <div class="scan-placeholder" id="scan-placeholder">
+            <span class="scan-placeholder__icon">📷</span>
+            <p>點選下方按鈕選擇圖片</p>
+          </div>
+        </div>
+        <div class="scan-status" id="scan-status" hidden>
+          <div class="spinner" aria-hidden="true"></div>
+          <div>
+            <p class="scan-status__title">AI 正在辨識收據…</p>
+            <p class="scan-status__hint">請稍候，這可能需要幾秒鐘</p>
+          </div>
+        </div>
+        <div class="scan-actions">
+          <label class="btn btn--primary btn--block">
+            <input type="file" id="scan-file" accept="image/*" capture="environment" hidden />
+            選擇 / 拍攝收據
+          </label>
+        </div>
+      </div>
+      <form id="scan-result-form" class="scan-form" hidden>
+        <h2 class="scan-form__title">辨識結果（可編輯）</h2>
+        <label class="field">
+          <span>店名 / 地點</span>
+          <input type="text" id="f-location" required />
+        </label>
+        <label class="field">
+          <span>說明（繁中）</span>
+          <input type="text" id="f-desc" />
+        </label>
+        <label class="field">
+          <span>金額（¥）</span>
+          <input type="number" id="f-amount" min="0" step="1" required />
+        </label>
+        <label class="field">
+          <span>類別</span>
+          <select id="f-category"></select>
+        </label>
+        <label class="field">
+          <span>支付方式</span>
+          <select id="f-payment"></select>
+        </label>
+        <label class="field">
+          <span>記帳人</span>
+          <select id="f-traveler"></select>
+        </label>
+        <label class="field">
+          <span>日期</span>
+          <input type="date" id="f-date" required />
+        </label>
+        <p class="field-hint" id="f-region-hint"></p>
+        <div class="field">
+          <span>品項明細（日文 → 繁中）</span>
+          <ul id="f-items" class="items-preview"></ul>
+        </div>
+        <div class="scan-form__actions">
+          <button type="button" class="btn btn--ghost" id="scan-reset">重新掃描</button>
+          <button type="submit" class="btn btn--primary">加入記帳</button>
+        </div>
+      </form>
+    </main>
+
+    <!-- 統計 -->
+    <main id="view-stats" class="view" aria-label="統計">
+      <header class="page-head">
+        <h1 class="page-head__title">統計分析</h1>
+        <p class="page-head__desc">每日趨勢、類別與支付方式</p>
+      </header>
+      <div class="chart-card">
+        <h3 class="chart-card__title">每日支出趨勢（¥）</h3>
+        <div class="chart-wrap"><canvas id="chart-daily"></canvas></div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-card chart-card--half">
+          <h3 class="chart-card__title">類別佔比</h3>
+          <div class="chart-wrap chart-wrap--pie"><canvas id="chart-category"></canvas></div>
+        </div>
+        <div class="chart-card chart-card--half">
+          <h3 class="chart-card__title">支付方式</h3>
+          <div class="chart-wrap chart-wrap--pie"><canvas id="chart-payment"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3 class="chart-card__title">TOP 10 單筆消費</h3>
+        <ol id="top10-list" class="top10-list"></ol>
+      </div>
+    </main>
+
+    <!-- 設定 -->
+    <main id="view-settings" class="view" aria-label="設定">
+      <header class="page-head">
+        <h1 class="page-head__title">設定</h1>
+      </header>
+      <form id="settings-form" class="settings-form">
+        <label class="field">
+          <span>旅程名稱</span>
+          <input type="text" id="set-trip-name" />
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>出發日</span>
+            <input type="date" id="set-start" />
+          </label>
+          <label class="field">
+            <span>結束日</span>
+            <input type="date" id="set-end" />
+          </label>
+        </div>
+        <label class="field">
+          <span>現金 + Suica 預算（¥）</span>
+          <input type="number" id="set-budget" min="0" step="1000" />
+        </label>
+        <label class="field">
+          <span>日幣 → 台幣匯率（1¥ = ? NT$）</span>
+          <input type="number" id="set-rate" min="0" step="0.0001" />
+        </label>
+        <label class="field">
+          <span>Google Apps Script 網址（試算表同步）</span>
+          <input type="url" id="set-sheet-url" placeholder="https://script.google.com/macros/s/.../exec" />
+        </label>
+        <p class="field-hint">部署專案內 <code>google-apps-script</code> 後貼上 Web App URL，可雙向同步。</p>
+        <label class="field">
+          <span>收據辨識端點（選填，同腳本 ?action=vision）</span>
+          <input type="url" id="set-vision-url" placeholder="與試算表相同或另開部署" />
+        </label>
+        <label class="field">
+          <span>OpenAI API Key（僅存於本機瀏覽器，可選）</span>
+          <input type="password" id="set-openai-key" autocomplete="off" placeholder="sk-..." />
+        </label>
+        <p class="field-hint">若填 Key，將直接呼叫 OpenAI Vision（需網路）。未填則使用智慧模擬辨識。</p>
+        <div class="settings-form__actions">
+          <button type="button" class="btn btn--secondary" id="btn-pull-sheet">從試算表拉取</button>
+          <button type="button" class="btn btn--secondary" id="btn-push-sheet">推送到試算表</button>
+          <button type="submit" class="btn btn--primary">儲存設定</button>
+        </div>
+      </form>
+      <section class="settings-extra">
+        <h3>行程與地區（每日）</h3>
+        <p class="field-hint">貼上 JSON 物件，鍵為日期 YYYY-MM-DD，值為地區名稱。儲存後會用於自動標記消費地區。</p>
+        <textarea id="set-itinerary-json" rows="8" class="textarea-code" spellcheck="false"></textarea>
+        <button type="button" class="btn btn--ghost btn--block" id="btn-save-itinerary">更新行程對照</button>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="主選單">
+      <button type="button" class="bottom-nav__item bottom-nav__item--active" data-view="home">
+        <span class="bottom-nav__icon">🏠</span>
+        <span>首頁</span>
+      </button>
+      <button type="button" class="bottom-nav__item" data-view="records">
+        <span class="bottom-nav__icon">📋</span>
+        <span>紀錄</span>
+      </button>
+      <button type="button" class="bottom-nav__item" data-view="scan">
+        <span class="bottom-nav__icon">📷</span>
+        <span>掃描</span>
+      </button>
+      <button type="button" class="bottom-nav__item" data-view="stats">
+        <span class="bottom-nav__icon">📈</span>
+        <span>統計</span>
+      </button>
+      <button type="button" class="bottom-nav__item" data-view="settings">
+        <span class="bottom-nav__icon">⚙️</span>
+        <span>設定</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- 編輯彈層 -->
+  <dialog id="modal-edit" class="modal">
+    <form method="dialog" id="form-edit" class="modal__form">
+      <h2 class="modal__title">編輯消費</h2>
+      <input type="hidden" id="edit-id" />
+      <label class="field"><span>說明</span><input type="text" id="edit-desc" /></label>
+      <label class="field"><span>金額（¥）</span><input type="number" id="edit-amount" min="0" /></label>
+      <label class="field"><span>類別</span><select id="edit-category"></select></label>
+      <label class="field"><span>支付</span><select id="edit-payment"></select></label>
+      <label class="field"><span>地點</span><input type="text" id="edit-location" /></label>
+      <label class="field"><span>日期</span><input type="date" id="edit-date" /></label>
+      <label class="field"><span>記帳人</span><select id="edit-traveler"></select></label>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" id="edit-delete">刪除</button>
+        <button type="submit" class="btn btn--primary">儲存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
