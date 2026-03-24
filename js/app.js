@@ -294,7 +294,7 @@ scanFile.addEventListener("change", async () => {
   if (!f) return;
   const reader = new FileReader();
   reader.onload = async () => {
-    lastDataUrl = reader.result;
+    lastDataUrl = await shrinkImageDataUrl(reader.result, 1600, 0.82);
     scanPreview.src = lastDataUrl;
     scanPreview.hidden = false;
     scanPlaceholder.hidden = true;
@@ -321,6 +321,34 @@ scanFile.addEventListener("change", async () => {
   };
   reader.readAsDataURL(f);
 });
+
+async function shrinkImageDataUrl(dataUrl, maxSide = 1600, quality = 0.82) {
+  if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) return dataUrl;
+  const img = await loadImage(dataUrl);
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) return dataUrl;
+  const scale = Math.min(1, maxSide / Math.max(w, h));
+  if (scale >= 1) return dataUrl;
+  const cw = Math.max(1, Math.round(w * scale));
+  const ch = Math.max(1, Math.round(h * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+  ctx.drawImage(img, 0, 0, cw, ch);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
 
 function fillScanForm(result) {
   document.getElementById("f-location").value = result.storeNameZh || result.storeName || "";
