@@ -38,6 +38,11 @@ function loadState() {
 let state = loadState();
 if (!state.settings) state.settings = { sheetUrl: "", visionUrl: "", openaiKey: "" };
 if (!Array.isArray(state.transactions)) state.transactions = [];
+if (Array.isArray(state.travelers)) {
+  state.travelers = state.travelers.map((t) =>
+    t && t.id === "t2" ? { ...t, name: "阿瑋" } : t
+  );
+}
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
