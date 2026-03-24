@@ -234,10 +234,19 @@
           <span>日幣 → 台幣匯率（1¥ = ? NT$）</span>
           <input type="number" id="set-rate" min="0" step="0.0001" />
         </label>
+        <div class="field-row">
+          <button type="button" class="btn btn--secondary" id="btn-refresh-rate">更新即時匯率</button>
+          <p class="field-hint" id="rate-updated-hint">尚未更新即時匯率</p>
+        </div>
         <label class="field">
           <span>Google Apps Script 網址（試算表同步）</span>
           <input type="url" id="set-sheet-url" placeholder="https://script.google.com/macros/s/.../exec" />
         </label>
+        <label class="field field--inline">
+          <span>開站自動拉取試算表</span>
+          <input type="checkbox" id="set-auto-pull-on-start" />
+        </label>
+        <p class="field-hint">建議開啟。若本機有未推送資料，會先跳出衝突提醒再決定是否覆蓋。</p>
         <p class="field-hint">部署專案內 <code>google-apps-script</code> 後貼上 Web App URL，可雙向同步。</p>
         <label class="field">
           <span>收據辨識端點（選填，同腳本 ?action=vision）</span>
@@ -323,6 +332,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js?v=20260324-11"></script>
+  <script type="module" src="js/app.js?v=20260324-14"></script>
 </body>
 </html>
