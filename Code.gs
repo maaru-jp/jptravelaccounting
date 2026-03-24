@@ -11,8 +11,8 @@
  *
  * 工作表名稱：Transactions（若不存在會自動建立並寫入標題列）
  */
-var PROP_SPREADSHEET_ID = '1GbjJd5NRPh_Jcx9My_Zess58cDPESI25yeuWLSxrZT0';
-var PROP_OPENAI_KEY = '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';
+var PROP_SPREADSHEET_ID = 'SPREADSHEET_ID';
+var PROP_OPENAI_KEY = 'OPENAI_API_KEY';
 var SHEET_NAME = 'Transactions';
 var HEADERS = ['id', 'date', 'amountJpy', 'category', 'payment', 'location', 'region', 'description', 'travelerId', 'taxType', 'itemsJson', 'createdAt'];
 
@@ -35,12 +35,7 @@ function doGet(e) {
 }
 
 function doPost(e) {
-  var body;
-  try {
-    body = JSON.parse(e.postData.contents);
-  } catch (x) {
-    return jsonOut_({ ok: false, error: 'invalid json' });
-  }
+  var body = parseBody_(e);
   if (body.action === 'push') {
     try {
       writeTransactions_(body.transactions || []);
@@ -58,6 +53,23 @@ function doPost(e) {
     }
   }
   return jsonOut_({ ok: false, error: 'unknown action' });
+}
+
+function parseBody_(e) {
+  var raw = (e && e.postData && e.postData.contents) || '';
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (x) {
+    // 支援 text/plain 或表單包 payload
+    var payload = e && e.parameter && e.parameter.payload;
+    if (payload) {
+      try {
+        return JSON.parse(payload);
+      } catch (y) {}
+    }
+    return { action: (e && e.parameter && e.parameter.action) || '' };
+  }
 }
 
 function jsonOut_(obj) {
