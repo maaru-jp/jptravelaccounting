@@ -27,10 +27,12 @@ function doGet(e) {
   var action = e && e.parameter && e.parameter.action;
   if (action === 'debug') {
     var id = getSpreadsheetId_();
+    var key = PropertiesService.getScriptProperties().getProperty(PROP_OPENAI_KEY);
     return jsonOutMaybeJsonp_({
       ok: true,
       spreadsheetId: id || '',
       sheetName: SHEET_NAME,
+      hasOpenAIKey: !!key,
       hint: id ? '已讀到 SPREADSHEET_ID' : '尚未設定 SPREADSHEET_ID（Script Properties 或 HARDCODED_SPREADSHEET_ID）'
     }, e);
   }
