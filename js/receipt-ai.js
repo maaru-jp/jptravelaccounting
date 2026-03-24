@@ -101,32 +101,20 @@ function normalizePayload(raw) {
     taxType: raw.taxType || "不確定",
     items,
     summaryZh: raw.summaryZh || raw.description || "收據消費",
+    isFallback: false,
   };
 }
 
 function mockFromImageHash(b64) {
-  let h = 0;
-  for (let i = 0; i < Math.min(b64.length, 200); i++) h = (h * 31 + b64.charCodeAt(i)) >>> 0;
-  const stores = [
-    { ja: "ローソン", zh: "Lawson 便利商店" },
-    { ja: "セブン-イレブン", zh: "7-Eleven" },
-    { ja: "無印良品", zh: "無印良品" },
-    { ja: "スターバックス", zh: "星巴克" },
-    { ja: "近江町市場 海鮮丼", zh: "近江町市場" },
-  ];
-  const s = stores[h % stores.length];
-  const total = 320 + (h % 8000);
+  const rough = tryExtractTotalFromDataUrlBase64(b64);
   return {
-    storeName: s.ja,
-    storeNameZh: s.zh,
-    totalJpy: total,
-    taxType: h % 2 === 0 ? "內稅" : "外稅10%",
-    items: [
-      { nameJa: "おにぎり", nameZh: "御飯糰", price: Math.round(total * 0.25), tax: "內含" },
-      { nameJa: "飲み物", nameZh: "飲料", price: Math.round(total * 0.2), tax: "內含" },
-      { nameJa: "その他", nameZh: "其他商品", price: total - Math.round(total * 0.45), tax: "課稅" },
-    ],
-    summaryZh: `（示範）${s.zh} 購物 · 若已設定 OpenAI 或 Apps Script 將改為真實辨識`,
+    storeName: "",
+    storeNameZh: "",
+    totalJpy: rough || 0,
+    taxType: "不確定",
+    items: [],
+    summaryZh: "未成功辨識發票內容，請手動修正欄位；建議檢查 Vision API / Apps Script 設定。",
+    isFallback: true,
   };
 }
 
@@ -141,5 +129,16 @@ async function fetchWithTimeout(url, options, timeoutMs) {
     return await fetch(url, { ...options, signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
+  }
+}
+
+// 無 OCR 時只嘗試非常保守的金額推測；失敗就回 0，不亂猜店名/品項
+function tryExtractTotalFromDataUrlBase64(base64) {
+  try {
+    const text = atob(base64.slice(0, 24000));
+    const m = text.match(/(?:TOTAL|合計|計|¥|JPY)\s*[:：]?\s*([0-9]{2,7})/i);
+    return m ? Number(m[1]) : 0;
+  } catch {
+    return 0;
   }
 }

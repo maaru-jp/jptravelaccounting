@@ -303,6 +303,7 @@ const scanPreview = document.getElementById("scan-preview");
 const scanPlaceholder = document.getElementById("scan-placeholder");
 const scanStatus = document.getElementById("scan-status");
 const scanForm = document.getElementById("scan-result-form");
+const scanFallbackHint = document.getElementById("scan-fallback-hint");
 const fAmount = document.getElementById("f-amount");
 const itemsSumHint = document.getElementById("items-sum-hint");
 let lastDataUrl = "";
@@ -370,8 +371,10 @@ function loadImage(src) {
 }
 
 function fillScanForm(result) {
+  scanFallbackHint.hidden = !result?.isFallback;
+  const cleanSummary = sanitizeSummary(result?.summaryZh || "", !!result?.isFallback);
   document.getElementById("f-location").value = result.storeNameZh || result.storeName || "";
-  document.getElementById("f-desc").value = result.summaryZh || "";
+  document.getElementById("f-desc").value = cleanSummary;
   document.getElementById("f-amount").value = result.totalJpy || 0;
   const catGuess = guessCategoryFromText((result.summaryZh || "") + (result.storeNameZh || ""));
   document.getElementById("f-category").value = catGuess;
@@ -388,6 +391,15 @@ function fillScanForm(result) {
   renderEditableItems();
   scanForm.dataset.taxType = result.taxType || "";
   syncScanItemsDataset();
+}
+
+function sanitizeSummary(text, isFallback) {
+  let s = String(text || "").trim();
+  s = s.replace(/\s*·\s*若已設定 OpenAI 或 Apps Script 將改為真實辨識\s*$/u, "");
+  if (isFallback && (!s || /^（示範）/u.test(s))) {
+    return "示範辨識結果（可手動修正後儲存）";
+  }
+  return s;
 }
 
 function renderEditableItems() {
@@ -507,6 +519,7 @@ document.getElementById("scan-reset").addEventListener("click", () => {
   scanPreview.hidden = true;
   scanPlaceholder.hidden = false;
   scanForm.hidden = true;
+  if (scanFallbackHint) scanFallbackHint.hidden = true;
   lastDataUrl = "";
   scanItems = [];
   syncScanItemsDataset();
@@ -768,9 +781,19 @@ document.getElementById("btn-save-itinerary").addEventListener("click", () => {
 document.getElementById("btn-push-sheet").addEventListener("click", async () => {
   const url = document.getElementById("set-sheet-url").value.trim() || state.settings.sheetUrl;
   try {
-    await pushToSheet(url, serializeForSheet(state.transactions));
-    setSheetSyncStatus("手動推送成功", true);
-    alert("已推送到試算表");
+    const payload = serializeForSheet(state.transactions);
+    const pushRes = await pushToSheet(url, payload);
+    const verify = await verifySheetWrite(url, payload);
+    if (verify.ok) {
+      setSheetSyncStatus(`手動推送成功（已驗證 ${verify.count} 筆）`, true);
+      alert(`已推送到試算表（已驗證 ${verify.count} 筆）`);
+    } else if (pushRes?.unverified) {
+      setSheetSyncStatus(`已送出但無法驗證：${verify.error}`, false);
+      alert(`已送出推送請求，但尚未驗證寫入成功：${verify.error}`);
+    } else {
+      setSheetSyncStatus(`推送後驗證失敗：${verify.error}`, false);
+      alert(`推送請求成功，但驗證未通過：${verify.error}`);
+    }
   } catch (e) {
     setSheetSyncStatus(`手動推送失敗：${e.message}`, false);
     alert("推送失敗：" + e.message);
@@ -850,14 +873,45 @@ async function autoSyncPush({ source = "auto" } = {}) {
     return { ok: false, error: "尚未設定 Apps Script 網址" };
   }
   try {
-    await pushToSheet(url, serializeForSheet(state.transactions));
+    const payload = serializeForSheet(state.transactions);
+    const pushRes = await pushToSheet(url, payload);
+    const verify = await verifySheetWrite(url, payload);
     const from = source === "scan" ? "掃描後" : "自動";
-    setSheetSyncStatus(`${from}同步成功（${new Date().toLocaleTimeString("zh-TW")}）`, true);
-    return { ok: true };
+    if (verify.ok) {
+      setSheetSyncStatus(`${from}同步成功（已驗證 ${verify.count} 筆）`, true);
+      return { ok: true };
+    }
+    const reason = verify.error || "驗證失敗";
+    if (pushRes?.unverified) {
+      setSheetSyncStatus(`${from}已送出但無法驗證：${reason}`, false);
+      return { ok: false, error: reason };
+    }
+    setSheetSyncStatus(`${from}同步失敗：${reason}`, false);
+    return { ok: false, error: reason };
   } catch (e) {
     const msg = e?.message || String(e);
     setSheetSyncStatus(`自動同步失敗：${msg}`, false);
     return { ok: false, error: msg };
+  }
+}
+
+async function verifySheetWrite(url, expectedRows) {
+  const expected = Array.isArray(expectedRows) ? expectedRows : [];
+  try {
+    const pulled = await pullFromSheet(url);
+    if (expected.length === 0) {
+      return { ok: pulled.length === 0, count: pulled.length, error: pulled.length ? "試算表仍有舊資料" : "" };
+    }
+    if (!pulled.length) return { ok: false, count: 0, error: "試算表回傳 0 筆" };
+    const pulledIds = new Set(pulled.map((x) => String(x.id || "")));
+    const sample = expected.slice(-Math.min(3, expected.length)).map((x) => String(x.id || ""));
+    const missed = sample.filter((id) => id && !pulledIds.has(id));
+    if (missed.length) {
+      return { ok: false, count: pulled.length, error: "最新資料未出現在試算表" };
+    }
+    return { ok: true, count: pulled.length };
+  } catch (e) {
+    return { ok: false, count: 0, error: e?.message || String(e) };
   }
 }
 
