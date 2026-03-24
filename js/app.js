@@ -1,8 +1,8 @@
-import { CATEGORIES, PAYMENTS, categoryById, paymentById } from "./config.js";
-import { buildDefaultItinerary, regionForDate } from "./itinerary.js";
-import { DEFAULT_TRAVELERS } from "./seed.js";
-import { recognizeReceipt } from "./receipt-ai.js";
-import { pushToSheet, pullFromSheet } from "./sheets.js";
+import { CATEGORIES, PAYMENTS, categoryById, paymentById } from "./config.js?v=20260324-3";
+import { buildDefaultItinerary, regionForDate } from "./itinerary.js?v=20260324-3";
+import { DEFAULT_TRAVELERS } from "./seed.js?v=20260324-3";
+import { recognizeReceipt } from "./receipt-ai.js?v=20260324-3";
+import { pushToSheet, pullFromSheet } from "./sheets.js?v=20260324-3";
 
 const STORAGE_KEY = "jp-trip-ledger-v2";
 const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
