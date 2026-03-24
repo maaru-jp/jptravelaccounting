@@ -393,6 +393,26 @@ body {
   text-transform: none;
 }
 
+.section-list__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.section-list__head .section-list__title {
+  margin-bottom: 0;
+}
+
+.quick-adds {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .tx-list {
   display: flex;
   flex-direction: column;
