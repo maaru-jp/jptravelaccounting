@@ -1,8 +1,8 @@
-import { CATEGORIES, PAYMENTS, categoryById, paymentById } from "./config.js?v=20260324-7";
-import { buildDefaultItinerary, regionForDate } from "./itinerary.js?v=20260324-7";
-import { DEFAULT_TRAVELERS } from "./seed.js?v=20260324-8";
+import { CATEGORIES, PAYMENTS, categoryById, paymentById } from "./config.js?v=20260324-9";
+import { buildDefaultItinerary, regionForDate } from "./itinerary.js?v=20260324-9";
+import { DEFAULT_TRAVELERS } from "./seed.js?v=20260324-9";
 import { recognizeReceipt } from "./receipt-ai.js?v=20260324-5";
-import { pushToSheet, pullFromSheet } from "./sheets.js?v=20260324-7";
+import { pushToSheet, pullFromSheet } from "./sheets.js?v=20260324-9";
 
 const STORAGE_KEY = "jp-trip-ledger-v2";
 const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
@@ -662,6 +662,7 @@ if (el("edit-delete")) {
 }
 
 let charts = { daily: null, category: null, payment: null };
+let statsTravelerFilter = "all";
 function destroyChart(key) {
   if (charts[key]) {
     charts[key].destroy();
@@ -671,8 +672,13 @@ function destroyChart(key) {
 
 function renderCharts() {
   if (typeof Chart === "undefined" || !el("chart-daily")) return;
+  renderTravelerTotalsAndFilter();
+  const baseTxs =
+    statsTravelerFilter === "all"
+      ? state.transactions
+      : state.transactions.filter((t) => t.travelerId === statsTravelerFilter);
   const byDate = {};
-  state.transactions.forEach((t) => {
+  baseTxs.forEach((t) => {
     byDate[t.date] = (byDate[t.date] || 0) + Number(t.amountJpy || 0);
   });
   const dates = Object.keys(byDate).sort();
@@ -684,7 +690,7 @@ function renderCharts() {
   });
 
   const catData = CATEGORIES.map((c) =>
-    state.transactions.filter((t) => t.category === c.id).reduce((s, x) => s + Number(x.amountJpy || 0), 0)
+    baseTxs.filter((t) => t.category === c.id).reduce((s, x) => s + Number(x.amountJpy || 0), 0)
   );
   destroyChart("category");
   charts.category = new Chart(el("chart-category"), {
@@ -694,7 +700,7 @@ function renderCharts() {
   });
 
   const payData = PAYMENTS.map((p) =>
-    state.transactions.filter((t) => t.payment === p.id).reduce((s, x) => s + Number(x.amountJpy || 0), 0)
+    baseTxs.filter((t) => t.payment === p.id).reduce((s, x) => s + Number(x.amountJpy || 0), 0)
   );
   destroyChart("payment");
   charts.payment = new Chart(el("chart-payment"), {
@@ -704,11 +710,49 @@ function renderCharts() {
   });
 
   if (el("top10-list")) {
-    const top = [...state.transactions].sort((a, b) => Number(b.amountJpy || 0) - Number(a.amountJpy || 0)).slice(0, 10);
+    const top = [...baseTxs].sort((a, b) => Number(b.amountJpy || 0) - Number(a.amountJpy || 0)).slice(0, 10);
     el("top10-list").innerHTML = top
       .map((t, i) => `<li><strong>${i + 1}.</strong> ${esc(t.description || t.location)} — ${formatJpy(t.amountJpy)}</li>`)
       .join("");
   }
+}
+
+function renderTravelerTotalsAndFilter() {
+  const totalWrap = el("stats-person-totals");
+  const filterWrap = el("stats-person-filter");
+  if (!totalWrap || !filterWrap) return;
+  const totals = state.travelers.map((u) => {
+    const sum = state.transactions
+      .filter((t) => t.travelerId === u.id)
+      .reduce((s, t) => s + Number(t.amountJpy || 0), 0);
+    return { ...u, sum };
+  });
+  totalWrap.innerHTML = totals
+    .map(
+      (u) =>
+        `<article class="person-total-card"><p class="person-total-card__name">${u.emoji} ${esc(
+          u.name
+        )}</p><p class="person-total-card__amt">${formatJpy(u.sum)}</p><p class="dash-card__sub">≈ ${formatTwd(
+          jpyToTwd(u.sum)
+        )}</p></article>`
+    )
+    .join("");
+
+  const opts = [{ id: "all", label: "全部" }, ...state.travelers.map((u) => ({ id: u.id, label: `${u.emoji} ${u.name}` }))];
+  filterWrap.innerHTML = opts
+    .map(
+      (o) =>
+        `<button type="button" class="person-filter__btn ${
+          statsTravelerFilter === o.id ? "person-filter__btn--active" : ""
+        }" data-filter="${o.id}">${esc(o.label)}</button>`
+    )
+    .join("");
+  filterWrap.querySelectorAll(".person-filter__btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      statsTravelerFilter = btn.dataset.filter || "all";
+      renderCharts();
+    });
+  });
 }
 
 function loadSettingsForm() {
