@@ -119,6 +119,7 @@
       </div>
       <form id="scan-result-form" class="scan-form" hidden>
         <h2 class="scan-form__title">辨識結果（可編輯）</h2>
+        <p class="scan-fallback-hint" id="scan-fallback-hint" hidden>目前為示範資料（fallback），請檢查 API 設定或網路連線。</p>
         <label class="field">
           <span>店名 / 地點</span>
           <input type="text" id="f-location" required />
@@ -292,6 +293,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=20260324-2"></script>
 </body>
 </html>
