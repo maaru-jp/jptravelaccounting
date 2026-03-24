@@ -81,41 +81,77 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  gap: 0;
-  margin-bottom: 16px;
-  height: 100px;
+  gap: 2px;
+  margin-bottom: 18px;
+  height: 122px;
+  position: relative;
 }
 
 .polaroid {
-  width: 72px;
-  height: 88px;
-  background: var(--surface);
-  border-radius: 6px;
-  box-shadow: var(--shadow);
+  width: 86px;
+  height: 106px;
+  border-radius: 10px;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.14), 0 6px 12px rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 6px solid var(--surface);
-  border-bottom-width: 20px;
+  border: 7px solid rgba(255, 255, 255, 0.92);
+  border-bottom-width: 24px;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.polaroid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  z-index: -1;
+}
+
+.polaroid::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  width: 28px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  filter: blur(0.3px);
 }
 
 .polaroid__emoji {
-  font-size: 2rem;
+  font-size: 2.25rem;
+  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
 .polaroid--1 {
-  transform: rotate(-8deg) translateX(8px);
+  transform: rotate(-10deg) translateX(10px) translateY(4px);
   z-index: 1;
 }
 
 .polaroid--2 {
-  transform: translateY(-6px);
+  transform: translateY(-8px);
   z-index: 3;
 }
 
 .polaroid--3 {
-  transform: rotate(8deg) translateX(-8px);
+  transform: rotate(10deg) translateX(-10px) translateY(3px);
   z-index: 2;
+}
+
+.polaroid--1::before {
+  background: linear-gradient(160deg, #77c9ff 0%, #bfe8ff 42%, #f7fbff 100%);
+}
+
+.polaroid--2::before {
+  background: linear-gradient(160deg, #ffb886 0%, #ffd7aa 38%, #fff4e5 100%);
+}
+
+.polaroid--3::before {
+  background: linear-gradient(160deg, #a7f0c5 0%, #d4f7e3 40%, #f5fff9 100%);
 }
 
 .hero__title {
